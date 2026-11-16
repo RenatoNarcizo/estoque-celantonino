@@ -2120,7 +2120,12 @@ function atualizarTabelaProdutos() {
     return;
   }
 
+  const contagemNomes = {};
+  (window.produtos || []).forEach(x => { const k = chaveBusca(x.nome); contagemNomes[k] = (contagemNomes[k] || 0) + 1; });
+
   tbody.innerHTML = lista.map((p, i) => {
+    const duplicado = contagemNomes[chaveBusca(p.nome)] > 1
+      ? ' <span title="Existe outro produto com este mesmo nome. Exclua um deles: o estoque continua ligado ao que ficar." style="background:#dc3545;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600;">DUPLICADO</span>' : "";
     const foto = p.foto
       ? `<img src="${p.foto}" class="thumb" onclick="ampliarImagem(this.src)" alt="Foto do produto">`
       : `<span class="sem-foto">Sem foto</span>`;
@@ -2130,7 +2135,7 @@ function atualizarTabelaProdutos() {
       <td>${i + 1}</td>
       <td style="text-align:center;">${foto}</td>
       <td>${esc(p.codigo || "-")}</td>
-      <td style="font-weight:600;">${esc(p.nome || "-")}</td>
+      <td style="font-weight:600;">${esc(p.nome || "-")}${duplicado}</td>
       <td>${esc(p.categoria || "-")}</td>
       <td>${esc(p.embalagem || "-")}</td>
       <td>${esc(p.qtdEmbalagem || "-")}</td>
@@ -4727,6 +4732,34 @@ async function salvarParametrosLimites() {
     mostrarMensagem("Erro ao salvar parâmetros: " + (e.code || e.message), "erro");
   }
 }
+
+// =====================================================================
+// PROTEÇÃO CONTRA CLIQUE DUPLO
+// Enquanto uma gravação está em andamento, novos cliques são ignorados
+// e o botão fica desabilitado ("Salvando…").
+// =====================================================================
+function protegerCliqueDuplo(nomeFuncao) {
+  const original = window[nomeFuncao];
+  if (typeof original !== "function" || original.__protegida) return;
+  let emAndamento = false;
+  const protegida = async function (...args) {
+    if (emAndamento) return;
+    emAndamento = true;
+    const botoes = [...document.querySelectorAll(`button[onclick^="${nomeFuncao}("]`)];
+    botoes.forEach(b => { b.disabled = true; b.style.opacity = "0.6"; b.style.cursor = "wait"; });
+    try {
+      return await original.apply(this, args);
+    } finally {
+      emAndamento = false;
+      botoes.forEach(b => { b.disabled = false; b.style.opacity = ""; b.style.cursor = ""; });
+    }
+  };
+  protegida.__protegida = true;
+  window[nomeFuncao] = protegida;
+}
+["cadastrarProduto", "registrarEntrada", "registrarSaida", "registrarImportacao", "registrarErro",
+ "salvarUsuarioLocal", "importarPedidoArquivo", "importarNotaArquivo", "cadastrarProdutoDaNota",
+ "aplicarTodasRecomendacoes", "baixarBackup"].forEach(protegerCliqueDuplo);
 
 </script>
 
